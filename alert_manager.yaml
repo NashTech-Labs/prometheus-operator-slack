@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: alert-rules
+  namespace: monitoring
+  # add labels to peak these rules up by identifying
+  labels:
+    app: kube-prometheus-stack
+    release: monitoring
+spec:
+  route:
+    receiver: 'slack'
+    repeatInterval: 30m
+    routes:
+    - matchers:
+      - name: alertname
+        value: HighCpuLoad
+      continue: true
+    - matchers:
+      - name: alertname
+        value: high_cpu_load
+      continue: true
+    - matchers:
+      - name: alertname
+        value: PodCrashLooping
+      continue: true
+      repeatInterval: 10m
+  receivers:
+  - name: 'slack'
+    slackConfigs:
+    - sendResolved: true
+      username: 'Prometheus'
+      apiURL:
+        name: slack-auth
+        key: password
+      channel: '#monitoring'
+      iconURL: https://avatars3.githubusercontent.com/u/3380462
+      title: |-
+        [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}
+        {{- if gt (len .CommonLabels) (len .GroupLabels) -}}
+          {{" "}}(
+          {{- with .CommonLabels.Remove .GroupLabels.Names }}
+            {{- range $index, $label := .SortedPairs -}}
+              {{ if $index }}, {{ end }}
+              {{- $label.Name }}="{{ $label.Value -}}"
+            {{- end }}
+          {{- end -}}
+          )
+        {{- end }}
+      text: >-
+        {{ range .Alerts -}} *Alert:* {{ .Annotations.title }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }} *Description:* {{ .Annotations.description }} *Details:*
+          {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+          {{ end }}
+        {{ end }}
